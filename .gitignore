@@ -1,45 +1,64 @@
-.gradle
-build/
-!gradle/wrapper/gradle-wrapper.jar
-!**/src/main/**/build/
-!**/src/test/**/build/
+# Gradle
+.gradle/
+/build/*
 
-### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
-*.iws
-*.iml
-*.ipr
+# Keep ANTLR-generated sources in Git.
+!/build/generated-src/
+/build/generated-src/*
+!/build/generated-src/antlr/
+/build/generated-src/antlr/*
+!/build/generated-src/antlr/main/
+!/build/generated-src/antlr/main/**
+
+# Kotlin
+.kotlin/
+*.kotlin_module
+
+# Compiled output
 out/
-!**/src/main/**/out/
-!**/src/test/**/out/
-
-### Kotlin ###
-.kotlin
-
-### Eclipse ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
 bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
+*.class
 
-### NetBeans ###
+# IntelliJ IDEA
+.idea/*
+!.idea/codeStyles/
+!.idea/codeStyles/**
+!.idea/gradle.xml
+!.idea/misc.xml
+!.idea/vcs.xml
+*.iml
+*.iws
+*.ipr
+
+# Visual Studio Code
+.vscode/
+
+# Eclipse
+.classpath
+.project
+.settings/
+.factorypath
+.apt_generated/
+
+# NetBeans
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
 
-### VS Code ###
-.vscode/
+# Logs and local environment
+*.log
+.env
+.env.*
+!.env.example
 
-### Mac OS ###
+# Operating-system files
 .DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
