@@ -1,9 +1,63 @@
 package lv426.compiler
 
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Path
+import kotlin.system.exitProcess
 import lv426.compiler.ast.toPrettyTree
+import lv426.compiler.backend.BackendExample
+import lv426.compiler.backend.HbcBackend
+import lv426.compiler.backend.HbcDisassembler
+import lv426.compiler.backend.HbcReader
 import lv426.compiler.frontend.FrontendPipeline
 
-fun main() {
+fun main(args: Array<String>) {
+    // Если запущено без аргументов (кнопка Run в IDEA) — запускаем твой AST Demo
+    if (args.isEmpty()) {
+        runFrontendDemo()
+        return
+    }
+
+    if (args.contentEquals(arrayOf("--help"))) {
+        println("Hope Compiler & VM CLI:")
+        println("  (no args)           : Run Frontend AST demo (Hadley's Hope)")
+        println("  --parse <file.hope> : Parse Hope file and dump AST")
+        println("  --demo <output.hbc> : Generate sample HBC bytecode")
+        println("  --dump <input.hbc>  : Disassemble HBC bytecode file")
+        return
+    }
+
+    try {
+        when (args[0]) {
+            "--parse" -> {
+                require(args.size == 2) { "Expected --parse <file.hope>" }
+                val source = Files.readString(Path.of(args[1]))
+                val ast = FrontendPipeline.parse(source)
+                println(ast.toPrettyTree())
+            }
+            "--demo" -> {
+                require(args.size == 2) { "Expected --demo <output.hbc>" }
+                val path = Path.of(args[1])
+                HbcBackend.write(BackendExample.program(), path)
+                println("Created ${path.toAbsolutePath()}")
+            }
+            "--dump" -> {
+                require(args.size == 2) { "Expected --dump <input.hbc>" }
+                val path = Path.of(args[1])
+                println(HbcDisassembler.disassemble(HbcReader.read(Files.readAllBytes(path))))
+            }
+            else -> throw IllegalArgumentException("Unknown option '${args[0]}'; use --help")
+        }
+    } catch (error: IllegalArgumentException) {
+        System.err.println("CLI error: ${error.message}")
+        exitProcess(1)
+    } catch (error: IOException) {
+        System.err.println("I/O error: ${error.message}")
+        exitProcess(1)
+    }
+}
+
+private fun runFrontendDemo() {
     val hadleysHopeCode = """
         program hadleys_hope
 
