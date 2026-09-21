@@ -1,6 +1,6 @@
 # Gradle
 .gradle/
-/build/*
+build/*
 
 # Keep ANTLR-generated sources in Git.
 !/build/generated-src/
