@@ -5,13 +5,13 @@ package lv426.compiler.ast
  */
 sealed interface AstNode
 
-// --- Корень программы ---
+// корень программы
 data class SourceNode(
     val programName: String?,
     val declarations: List<TopLevelDeclNode>
 ) : AstNode
 
-// --- Декларации верхнего уровня ---
+// декларации верхнего уровня
 sealed interface TopLevelDeclNode : AstNode
 
 data class ConstDeclNode(
@@ -59,7 +59,7 @@ data class ParamNode(
     val type: TypeRefNode
 ) : AstNode
 
-// --- Обработчики событий ---
+// обработчики событий
 data class StartHandlerNode(
     val body: List<StmtNode>
 ) : TopLevelDeclNode
@@ -79,7 +79,7 @@ data class AtHandlerNode(
     val duration: DurationLiteralNode,
     val body: List<StmtNode>
 ) : TopLevelDeclNode
-// --- Типы данных ---
+// типы данных
 sealed interface TypeRefNode : AstNode
 
 enum class PrimitiveType { INT, REAL, BOOL, STRING, TIME, VOID }
@@ -88,9 +88,9 @@ data class PrimitiveTypeNode(val type: PrimitiveType) : TypeRefNode
 data class CustomTypeNode(val name: String) : TypeRefNode
 data class ListTypeNode(val elementType: TypeRefNode) : TypeRefNode
 data class ArrayTypeNode(val elementType: TypeRefNode, val size: String) : TypeRefNode
-// --- Объявления (Declarations) ---
+// объявления
 
-// --- Инструкции (Statements) ---
+// инструкции
 sealed interface StmtNode : AstNode
 
 data class LocalVarDeclNode(
@@ -137,7 +137,7 @@ data class ReturnStmtNode(val value: ExprNode?) : StmtNode
 data class EmitStmtNode(val eventName: String, val arguments: List<ExprNode>) : StmtNode
 data class ExprStmtNode(val expr: ExprNode) : StmtNode
 
-// --- Выражения (Expressions) ---
+// выражения
 sealed interface ExprNode : AstNode
 
 enum class BinaryOp {

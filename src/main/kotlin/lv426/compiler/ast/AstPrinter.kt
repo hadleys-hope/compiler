@@ -76,7 +76,7 @@ fun AstNode.toPrettyTree(indent: String = "", isLast: Boolean = true): String {
             }
         }
 
-        // --- Инструкции (Statements) ---
+        // инструкции
 
         is AssignmentStmtNode -> {
             val opStr = when (op) {
@@ -151,7 +151,7 @@ fun AstNode.toPrettyTree(indent: String = "", isLast: Boolean = true): String {
     return sb.toString()
 }
 
-// Хелперы компактного форматирования типов и выражений
+// хелперы компактного форматирования типов и выражений
 private fun formatType(t: TypeRefNode): String = when (t) {
     is PrimitiveTypeNode -> t.type.name.lowercase()
     is CustomTypeNode -> t.name

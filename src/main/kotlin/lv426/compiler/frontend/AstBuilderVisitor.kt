@@ -11,7 +11,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
         return SourceNode(programName, decls)
     }
 
-    // --- Top-level Declarations ---
+    // Top-level Declarations
 
     override fun visitConstDecl(ctx: HopeLangParser.ConstDeclContext): ConstDeclNode {
         return ConstDeclNode(
@@ -64,7 +64,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
     override fun visitParameter(ctx: HopeLangParser.ParameterContext): ParamNode =
         ParamNode(ctx.ID().text, visitTypeRef(ctx.typeRef()))
 
-    // --- Event Handlers ---
+    // Event Handlers
 
     override fun visitStartHandler(ctx: HopeLangParser.StartHandlerContext): StartHandlerNode =
         StartHandlerNode(ctx.statement().map { visit(it) as StmtNode })
@@ -80,7 +80,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
     override fun visitAtHandler(ctx: HopeLangParser.AtHandlerContext): AtHandlerNode =
         AtHandlerNode(visitDurationLiteral(ctx.durationLiteral()), ctx.statement().map { visit(it) as StmtNode })
 
-    // --- Types ---
+    // Types
 
     override fun visitTypeRef(ctx: HopeLangParser.TypeRefContext): TypeRefNode {
         val atom = ctx.typeAtom()
@@ -110,8 +110,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
         }
     }
 
-    // --- Statements ---
-
+    // Statements
     override fun visitStatement(ctx: HopeLangParser.StatementContext): StmtNode =
         visit(ctx.getChild(0)) as StmtNode
 
