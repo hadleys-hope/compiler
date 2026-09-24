@@ -12,6 +12,35 @@ object HbcDisassembler {
             module.constants.forEachIndexed { index, constant ->
                 appendLine("  #$index = ${formatConstant(constant)}")
             }
+            if (module.metadataPresent) {
+                fun name(index: Int) = quote((module.constants[index] as HbcConstant.StringValue).value)
+                appendLine("types (${module.types.size}):")
+                module.types.forEachIndexed { index, type -> appendLine("  #$index = ${formatType(type)}") }
+                appendLine("structs (${module.structs.size}):")
+                module.structs.forEachIndexed { index, struct ->
+                    appendLine("  #$index ${name(struct.nameConstant)}:")
+                    struct.fields.forEachIndexed { slot, field ->
+                        appendLine("    $slot ${name(field.nameConstant)} type=#${field.typeIndex}")
+                    }
+                }
+                appendLine("globals (${module.globals.size}):")
+                module.globals.forEach {
+                    appendLine("  ${name(it.nameConstant)} type=#${it.typeIndex} mutable=${it.mutable} initializer=${name(module.functions[it.initializerFunction].nameConstant)}")
+                }
+                appendLine("events (${module.events.size}):")
+                module.events.forEachIndexed { index, event ->
+                    appendLine("  #$index ${name(event.nameConstant)} parameters=${event.parameterTypes}")
+                }
+                appendLine("handlers (${module.handlers.size}):")
+                module.handlers.forEach {
+                    val detail = when (it.kind) {
+                        HbcHandlerKind.EVENT -> " event=${name(module.events[it.eventIndex].nameConstant)}"
+                        HbcHandlerKind.START -> ""
+                        HbcHandlerKind.EVERY, HbcHandlerKind.AT -> " time=${it.milliseconds}ms"
+                    }
+                    appendLine("  ${it.kind}$detail function=${name(module.functions[it.functionIndex].nameConstant)}")
+                }
+            }
             module.functions.forEach { function ->
                 val name = (module.constants[function.nameConstant] as HbcConstant.StringValue).value
                 appendLine()
@@ -19,6 +48,14 @@ object HbcDisassembler {
                 HbcDecoder.decode(function.code).forEach { instruction ->
                     append("  ${instruction.offset.toString().padStart(6, '0')}  ${instruction.opcode}")
                     when (instruction.opcode) {
+                        Opcode.NEW_STRUCT -> append(" struct=#${instruction.operand}")
+                        Opcode.LOAD_FIELD, Opcode.STORE_FIELD -> append(" struct=#${instruction.operand} field=${instruction.argumentCount}")
+                        Opcode.NEW_ARRAY -> append(" type=#${instruction.operand}")
+                        Opcode.NEW_ARRAY_INIT -> {
+                            val factory = (module.constants[instruction.argumentCount] as HbcConstant.StringValue).value
+                            append(" type=#${instruction.operand} initializer=${quote(factory)}")
+                        }
+                        Opcode.NEW_LIST -> append(" type=#${instruction.operand} count=${instruction.argumentCount}")
                         Opcode.PUSH_CONST, Opcode.LOAD_GLOBAL, Opcode.STORE_GLOBAL -> {
                             append(" #${instruction.operand} ; ${formatConstant(module.constants[instruction.operand])}")
                         }
@@ -34,6 +71,17 @@ object HbcDisassembler {
                 }
             }
         }
+    }
+
+    private fun formatType(type: HbcType): String = when (type) {
+        HbcType.IntType -> "int"
+        HbcType.RealType -> "real"
+        HbcType.BoolType -> "bool"
+        HbcType.StringType -> "string"
+        HbcType.TimeType -> "time"
+        is HbcType.Struct -> "struct ${quote(type.name)}"
+        is HbcType.Array -> "${formatType(type.element)}[${type.size}]"
+        is HbcType.ListType -> "list<${formatType(type.element)}>"
     }
 
     private fun formatConstant(constant: HbcConstant): String = when (constant) {

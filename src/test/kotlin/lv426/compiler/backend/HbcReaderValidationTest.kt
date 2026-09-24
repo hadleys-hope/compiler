@@ -6,6 +6,49 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class HbcReaderValidationTest {
+    @Test fun `every truncated prefix of extended file and trailing data is rejected`() {
+        val bytes = HbcBackend.compileToBytes(extendedProgram())
+        for (size in bytes.indices) {
+            assertFailsWith<HbcFormatException>("Accepted prefix $size") { HbcReader.read(bytes.copyOf(size)) }
+        }
+        assertFailsWith<HbcFormatException> { HbcReader.read(bytes + rawCode(0)) }
+    }
+
+    @Test fun `metadata rejects unknown type and handler tags malformed flags and excessive type nesting`() {
+        val tails = listOf(
+            rawCode(0, 1, 255), // One unknown type.
+            rawCode(0, 1) + rawCode(*IntArray(64) { 8 }) + rawCode(1),
+            encodedBytes { // One global with a noncanonical mutability byte.
+                writeShort(1); writeByte(1); writeShort(0); writeShort(1)
+                writeShort(0); writeShort(0); writeShort(0); writeByte(2)
+                writeShort(0); writeShort(0)
+            },
+            encodedBytes {
+                repeat(4) { writeShort(0) }; writeShort(1); writeByte(255); writeShort(0)
+            }
+        )
+        tails.forEach { extension ->
+            assertFailsWith<HbcFormatException> { HbcReader.read(rawHbc(extension = rawCode(0x4d, 0x45, 0x54, 0x41) + extension)) }
+        }
+        val emptyMetadata = rawHbc(extension = rawCode(0x4d, 0x45, 0x54, 0x41) + ByteArray(10))
+        assertContentEquals(emptyMetadata, HbcReader.read(emptyMetadata).toBytes())
+    }
+
+    @Test fun `aggregate opcodes reject truncated operands and missing metadata`() {
+        for ((opcode, width) in mapOf(0x70 to 2, 0x71 to 4, 0x72 to 4, 0x73 to 2, 0x74 to 4, 0x7a to 4)) {
+            for (available in 0 until width) {
+                assertFailsWith<HbcFormatException> {
+                    HbcReader.read(rawHbc(functions = listOf(RawHbcFunction(rawCode(opcode) + ByteArray(available))),
+                        extension = rawCode(0x4d, 0x45, 0x54, 0x41) + ByteArray(10)))
+                }
+            }
+        }
+        // Struct construction requires a valid table reference.
+        assertFailsWith<HbcFormatException> {
+            HbcReader.read(rawHbc(functions = listOf(RawHbcFunction(rawCode(0x70, 0, 0, 0x61)))))
+        }
+    }
+
     @Test fun `every truncated prefix of a complete file is rejected`() {
         val complete = rawHbc()
         assertEquals(1, HbcReader.read(complete).functions.size)

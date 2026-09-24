@@ -2,6 +2,7 @@ package lv426.compiler.backend
 
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
+import java.math.BigDecimal
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.CharacterCodingException
@@ -22,7 +23,11 @@ enum class Opcode(val code: Int) {
     NEGATE(0x10), NOT(0x11), ADD(0x20), SUBTRACT(0x21), MULTIPLY(0x22), DIVIDE(0x23), MODULO(0x24),
     EQUAL(0x30), NOT_EQUAL(0x31), LESS(0x32), LESS_OR_EQUAL(0x33), GREATER(0x34), GREATER_OR_EQUAL(0x35),
     AND(0x36), OR(0x37), JUMP(0x40), JUMP_IF_FALSE(0x41), CALL(0x50), EMIT(0x51), RETURN(0x60),
-    RETURN_VALUE(0x61), POP(0x62), NOP(0x00);
+    RETURN_VALUE(0x61), POP(0x62), NOP(0x00),
+    NEW_STRUCT(0x70), LOAD_FIELD(0x71), STORE_FIELD(0x72), NEW_ARRAY(0x73), NEW_LIST(0x74),
+    LOAD_INDEX(0x75), STORE_INDEX(0x76), LENGTH(0x77), LIST_APPEND(0x78), LIST_REMOVE(0x79),
+    /** u16 array type, u16 factory name constant; no inputs, one fresh array result. */
+    NEW_ARRAY_INIT(0x7a);
 
     companion object {
         fun fromCode(code: Int): Opcode = entries.firstOrNull { it.code == code }
@@ -43,7 +48,40 @@ data class HbcFunction(
     override fun hashCode(): Int = 31 * (31 * (31 * nameConstant + parameterCount) + localCount) + code.contentHashCode()
 }
 
-data class HbcModule(val constants: List<HbcConstant>, val functions: List<HbcFunction>) {
+/** Backend type descriptors, independent of frontend semantic classes. No void storage type. */
+sealed interface HbcType {
+    data object IntType : HbcType
+    data object RealType : HbcType
+    data object BoolType : HbcType
+    data object StringType : HbcType
+    data object TimeType : HbcType
+    data class Struct(val name: String) : HbcType
+    data class Array(val element: HbcType, val size: Int) : HbcType
+    data class ListType(val element: HbcType) : HbcType
+}
+
+data class HbcField(val nameConstant: Int, val typeIndex: Int)
+data class HbcStruct(val nameConstant: Int, val fields: List<HbcField>)
+data class HbcGlobal(val nameConstant: Int, val typeIndex: Int, val initializerFunction: Int, val mutable: Boolean = true)
+data class HbcEvent(val nameConstant: Int, val parameterTypes: List<Int>)
+enum class HbcHandlerKind(val tag: Int) { EVENT(1), START(2), EVERY(3), AT(4) }
+/** Registration order is significant. Scheduling uses elapsed milliseconds, never wall-clock time. */
+data class HbcHandler(
+    val kind: HbcHandlerKind, val functionIndex: Int,
+    val eventIndex: Int = 0, val milliseconds: Long = 0
+)
+
+data class HbcModule(
+    val constants: List<HbcConstant>, val functions: List<HbcFunction>,
+    val types: List<HbcType> = emptyList(),
+    val structs: List<HbcStruct> = emptyList(),
+    val globals: List<HbcGlobal> = emptyList(),
+    val events: List<HbcEvent> = emptyList(),
+    val handlers: List<HbcHandler> = emptyList(),
+    /** Retains an explicitly present empty metadata section when reading a file. */
+    val metadataPresent: Boolean = types.isNotEmpty() || structs.isNotEmpty() || globals.isNotEmpty() ||
+        events.isNotEmpty() || handlers.isNotEmpty()
+) {
     /** Validates even manually constructed modules before serializing them. */
     fun toBytes(): ByteArray {
         HbcVerifier.validate(this)
@@ -61,6 +99,35 @@ data class HbcModule(val constants: List<HbcConstant>, val functions: List<HbcFu
                     out.writeInt(it.code.size)
                     out.write(it.code)
                 }
+                if (metadataPresent) {
+                    out.write(METADATA_MAGIC)
+                    out.writeShort(types.size)
+                    types.forEach { it.writeTo(out) }
+                    out.writeShort(structs.size)
+                    structs.forEach { struct ->
+                        out.writeShort(struct.nameConstant); out.writeShort(struct.fields.size)
+                        struct.fields.forEach { out.writeShort(it.nameConstant); out.writeShort(it.typeIndex) }
+                    }
+                    out.writeShort(globals.size)
+                    globals.forEach {
+                        out.writeShort(it.nameConstant); out.writeShort(it.typeIndex)
+                        out.writeShort(it.initializerFunction); out.writeBoolean(it.mutable)
+                    }
+                    out.writeShort(events.size)
+                    events.forEach { event ->
+                        out.writeShort(event.nameConstant); out.writeShort(event.parameterTypes.size)
+                        event.parameterTypes.forEach(out::writeShort)
+                    }
+                    out.writeShort(handlers.size)
+                    handlers.forEach {
+                        out.writeByte(it.kind.tag); out.writeShort(it.functionIndex)
+                        when (it.kind) {
+                            HbcHandlerKind.EVENT -> out.writeShort(it.eventIndex)
+                            HbcHandlerKind.START -> Unit
+                            HbcHandlerKind.EVERY, HbcHandlerKind.AT -> out.writeLong(it.milliseconds)
+                        }
+                    }
+                }
             }
             bytes.toByteArray()
         }
@@ -70,10 +137,47 @@ data class HbcModule(val constants: List<HbcConstant>, val functions: List<HbcFu
         // A caller may modify the returned array without changing the file format.
         val MAGIC: ByteArray get() = byteArrayOf('H'.code.toByte(), 'B'.code.toByte(), 'C'.code.toByte(), 0)
         const val VERSION: Int = 1
+        internal val METADATA_MAGIC: ByteArray get() = byteArrayOf('M'.code.toByte(), 'E'.code.toByte(), 'T'.code.toByte(), 'A'.code.toByte())
     }
 }
 
 class HbcFormatException(message: String) : IllegalArgumentException(message)
+
+enum class HbcTimeUnit(val milliseconds: Long) {
+    MS(1), SEC(1000), MIN(60_000), HOUR(3_600_000), DAY(86_400_000)
+}
+
+/** Exact decimal conversion for IR producers. Fractional milliseconds and overflow are errors. */
+object HbcTime {
+    fun milliseconds(value: String, unit: HbcTimeUnit): Long = try {
+        BigDecimal(value).multiply(BigDecimal.valueOf(unit.milliseconds)).longValueExact()
+    } catch (_: NumberFormatException) {
+        throw HbcFormatException("Invalid duration literal '$value'")
+    } catch (_: ArithmeticException) {
+        throw HbcFormatException("Duration '$value' $unit must fit an exact i64 millisecond value")
+    }
+
+    /** Compatibility with Double-based ASTs; precision already lost upstream cannot be recovered. */
+    fun milliseconds(value: Double, unit: HbcTimeUnit): Long {
+        if (!value.isFinite()) throw HbcFormatException("Duration must be finite")
+        return milliseconds(value.toString(), unit)
+    }
+}
+
+private fun HbcType.writeTo(out: DataOutputStream): Unit = when (this) {
+    HbcType.IntType -> out.writeByte(1)
+    HbcType.RealType -> out.writeByte(2)
+    HbcType.BoolType -> out.writeByte(3)
+    HbcType.StringType -> out.writeByte(4)
+    HbcType.TimeType -> out.writeByte(5)
+    is HbcType.Struct -> {
+        out.writeByte(6)
+        val bytes = HbcUtf8.encode(name)
+        out.writeShort(bytes.size); out.write(bytes)
+    }
+    is HbcType.Array -> { out.writeByte(7); out.writeInt(size); element.writeTo(out) }
+    is HbcType.ListType -> { out.writeByte(8); element.writeTo(out) }
+}
 
 private fun HbcConstant.writeTo(out: DataOutputStream) = when (this) {
     is HbcConstant.IntValue -> { out.writeByte(1); out.writeLong(value) }
