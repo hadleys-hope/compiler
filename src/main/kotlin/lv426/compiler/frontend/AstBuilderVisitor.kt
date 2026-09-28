@@ -118,7 +118,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
         return if (ctx.LBRACK() != null) {
             val sizeCtx = ctx.arraySize()
             val sizeNode: ArraySizeNode = if (sizeCtx.INT_LITERAL() != null) {
-                IntArraySizeNode(sizeCtx.INT_LITERAL().text.toLong(), sizeCtx.loc())
+                IntArraySizeNode(parseInt(sizeCtx.INT_LITERAL().text, sizeCtx.loc()), sizeCtx.loc())
             } else {
                 IdentArraySizeNode(sizeCtx.ID().text, sizeCtx.loc())
             }
@@ -347,7 +347,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
 
     override fun visitLiteral(ctx: HopeLangParser.LiteralContext): ExprNode {
         return when {
-            ctx.INT_LITERAL() != null -> IntLiteralNode(ctx.INT_LITERAL().text.toLong(), ctx.loc())
+            ctx.INT_LITERAL() != null -> IntLiteralNode(parseInt(ctx.INT_LITERAL().text, ctx.loc()), ctx.loc())
             ctx.REAL_LITERAL() != null -> RealLiteralNode(ctx.REAL_LITERAL().text.toDouble(), ctx.loc())
             ctx.STRING_LITERAL() != null -> {
                 val txt = ctx.STRING_LITERAL().text
@@ -373,6 +373,11 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
         }
         return DurationLiteralNode(num, unit, ctx.loc())
     }
+
+    private fun parseInt(text: String, location: SourceLocation): Long =
+        text.toLongOrNull() ?: throw FrontendPipeline.HopeSyntaxException(
+            "Integer literal out of range at ${location.line}:${location.column}: $text"
+        )
 
     // escape-sequences (\n, \t, \uXXXX)
     private fun unescapeString(s: String): String {

@@ -7,7 +7,7 @@ import org.antlr.v4.runtime.*
 
 object FrontendPipeline {
 
-    class HopeSyntaxException(message: String) : RuntimeException(message)
+    class HopeSyntaxException(message: String) : IllegalArgumentException(message)
 
     fun parse(sourceCode: String): SourceNode {
         val charStream = CharStreams.fromString(sourceCode)
@@ -18,7 +18,7 @@ object FrontendPipeline {
             override fun syntaxError(
                 r: Recognizer<*, *>?, off: Any?, line: Int, col: Int, msg: String?, e: RecognitionException?
             ) {
-                throw HopeSyntaxException("Lexer error at $line:$col: $msg")
+                throw HopeSyntaxException("Lexer error at $line:${col + 1}: $msg")
             }
         })
 
@@ -30,7 +30,7 @@ object FrontendPipeline {
             override fun syntaxError(
                 r: Recognizer<*, *>?, off: Any?, line: Int, col: Int, msg: String?, e: RecognitionException?
             ) {
-                throw HopeSyntaxException("Parser error at $line:$col: $msg")
+                throw HopeSyntaxException("Parser error at $line:${col + 1}: $msg")
             }
         })
 

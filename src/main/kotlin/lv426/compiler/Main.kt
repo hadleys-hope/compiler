@@ -9,7 +9,9 @@ import lv426.compiler.backend.BackendExample
 import lv426.compiler.backend.HbcBackend
 import lv426.compiler.backend.HbcDisassembler
 import lv426.compiler.backend.HbcReader
+import lv426.compiler.backend.IrPrinter
 import lv426.compiler.frontend.FrontendPipeline
+import lv426.compiler.semantic.DiagnosticSeverity
 
 fun main(args: Array<String>) {
     // Если запущено без аргументов (кнопка Run в IDEA) — запускаем твой AST Demo
@@ -22,6 +24,9 @@ fun main(args: Array<String>) {
         println("Hope Compiler & VM CLI:")
         println("  (no args)           : Run Frontend AST demo (Hadley's Hope)")
         println("  --parse <file.hope> : Parse Hope file and dump AST")
+        println("  --check <file.hope> : Parse and run semantic analysis")
+        println("  --dump-ir <file.hope> : Parse, check, lower and dump stack IR")
+        println("  --compile <file.hope> <output.hbc> : Compile Hope source to HBC")
         println("  --demo <output.hbc> : Generate sample HBC bytecode")
         println("  --dump <input.hbc>  : Disassemble HBC bytecode file")
         return
@@ -34,6 +39,30 @@ fun main(args: Array<String>) {
                 val source = Files.readString(Path.of(args[1]))
                 val ast = FrontendPipeline.parse(source)
                 println(ast.toPrettyTree())
+            }
+            "--check" -> {
+                require(args.size == 2) { "Expected --check <file.hope>" }
+                val source = Files.readString(Path.of(args[1]))
+                val result = CompilerPipeline.analyze(source).semantic
+                result.diagnostics.forEach { diagnostic ->
+                    val location = diagnostic.location?.let { "${it.line}:${it.column}: " } ?: ""
+                    val stream = if (diagnostic.severity == DiagnosticSeverity.ERROR) System.err else System.out
+                    stream.println("$location${diagnostic.severity.name.lowercase()}: ${diagnostic.message}")
+                }
+                if (!result.isValid) exitProcess(1)
+                println("Semantic analysis: OK")
+            }
+            "--dump-ir" -> {
+                require(args.size == 2) { "Expected --dump-ir <file.hope>" }
+                val source = Files.readString(Path.of(args[1]))
+                println(IrPrinter.print(CompilerPipeline.lower(source).ir))
+            }
+            "--compile" -> {
+                require(args.size == 3) { "Expected --compile <file.hope> <output.hbc>" }
+                val source = Files.readString(Path.of(args[1]))
+                val path = Path.of(args[2])
+                val module = CompilerPipeline.write(source, path)
+                println("Compiled ${args[1]} -> ${path.toAbsolutePath()} (${module.functions.size} functions)")
             }
             "--demo" -> {
                 require(args.size == 2) { "Expected --demo <output.hbc>" }
@@ -181,15 +210,61 @@ private fun runFrontendDemo() {
         end
     """.trimIndent()
 
-    println("Parsing Hadley's Hope colony program...")
+    println("=== Hadley's Hope compiler demo ===")
+
     try {
+        println("[1/4] Parsing...")
         val ast = FrontendPipeline.parse(hadleysHopeCode)
-        println("SUCCESS! Program: ${ast.programName}")
-        println("Top-level declarations parsed: ${ast.declarations.size}")
-        println("\nAST Tree Dump:")
-        println(ast.toPrettyTree())
+        println("Program: ${ast.programName}")
+        println("Top-level declarations: ${ast.declarations.size}")
+
+        println("[2/4] Semantic analysis...")
+        val semantic = CompilerPipeline.analyze(hadleysHopeCode).semantic
+
+        semantic.diagnostics.forEach { diagnostic ->
+            val location = diagnostic.location?.let {
+                "${it.line}:${it.column}: "
+            } ?: ""
+
+            println(
+                "$location${diagnostic.severity.name.lowercase()}: ${diagnostic.message}"
+            )
+        }
+
+        if (!semantic.isValid) {
+            println("Semantic analysis failed")
+            return
+        }
+
+        println("Semantic analysis: OK")
+
+        println("[3/4] Lowering to IR...")
+        val lowered = CompilerPipeline.lower(hadleysHopeCode)
+
+        println(IrPrinter.print(lowered.ir))
+
+        println("[4/4] Compiling HBC...")
+        val module = HbcBackend.compile(lowered.ir)
+
+        println("HBC compilation: OK")
+        println("Functions: ${module.functions.size}")
+        println("Globals: ${module.globals.size}")
+        println("Structs: ${module.structs.size}")
+        println("Events: ${module.events.size}")
+        println("Handlers: ${module.handlers.size}")
+
+        val output = Path.of("build/hadleys-hope.hbc")
+        Files.createDirectories(output.parent)
+        Files.write(output, module.toBytes())
+
+        println("Written: ${output.toAbsolutePath()}")
+
+        println()
+        println("=== HBC ===")
+        println(HbcDisassembler.disassemble(module))
+
     } catch (e: Exception) {
-        System.err.println("Failed to compile: ${e.message}")
+        System.err.println("Compilation failed: ${e.message}")
         e.printStackTrace()
     }
 }

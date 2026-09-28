@@ -1,31 +1,29 @@
 package lv426.compiler.semantic
 
-data class SourceLocation(val line: Int, val column: Int)
+import lv426.compiler.ast.SourceLocation
 
 enum class DiagnosticSeverity {
     ERROR,
     WARNING
 }
 
-data class Diagnostic (
+data class Diagnostic(
     val message: String,
     val location: SourceLocation? = null,
-    val severity: DiagnosticSeverity = DiagnosticSeverity.ERROR,
+    val severity: DiagnosticSeverity = DiagnosticSeverity.ERROR
 )
 
 class DiagnosticBuilder {
     private val items = mutableListOf<Diagnostic>()
 
     fun error(message: String, location: SourceLocation? = null) {
-        items += Diagnostic(message = message, location = location, severity = DiagnosticSeverity.ERROR)
+        items += Diagnostic(message, location, DiagnosticSeverity.ERROR)
     }
 
     fun warning(message: String, location: SourceLocation? = null) {
-        items += Diagnostic(message = message, location = location, severity = DiagnosticSeverity.WARNING)
+        items += Diagnostic(message, location, DiagnosticSeverity.WARNING)
     }
 
     fun all(): List<Diagnostic> = items.toList()
-
-    fun hasErrors(): Boolean = items.any{ it.severity == DiagnosticSeverity.ERROR }
-
+    fun hasErrors(): Boolean = items.any { it.severity == DiagnosticSeverity.ERROR }
 }

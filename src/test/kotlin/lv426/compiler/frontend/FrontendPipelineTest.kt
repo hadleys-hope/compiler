@@ -148,4 +148,14 @@ class FrontendPipelineTest {
         val str = constDecl.value as StringLiteralNode
         assertEquals("Hello\nWorld\t\"quotes\"", str.value)
     }
+    @Test
+    fun `integer literal overflow is reported as frontend error`() {
+        val code = "const X of int = 999999999999999999999999999999999999"
+        val ex = assertFailsWith<FrontendPipeline.HopeSyntaxException> {
+            FrontendPipeline.parse(code)
+        }
+        assertTrue("Integer literal out of range" in ex.message.orEmpty())
+        assertTrue("1:" in ex.message.orEmpty())
+    }
+
 }

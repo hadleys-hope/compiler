@@ -1,65 +1,24 @@
 package lv426.compiler.semantic
 
 object Builtins {
-    fun install(symbols: SymbolTable){
-        symbols.declare(
-            FunctionSymbol(
-                name = "random_int",
-                parameters = listOf(
-                    FunctionParameter("min", IntType),
-                    FunctionParameter("max", IntType)
-                ), returnType = IntType
-            )
-        )
-        symbols.declare(
-            FunctionSymbol(
-                name = "random_real",
-                parameters = listOf(
-                    FunctionParameter("min", RealType),
-                    FunctionParameter("max", RealType)
-                ),
-                returnType = RealType
-            )
-        )
+    fun install(symbols: SymbolTable) {
+        fun fixed(name: String, parameters: List<HopeType>, result: HopeType) {
+            symbols.declare(FunctionSymbol(name, parameters.mapIndexed { i, type -> FunctionParameter("arg$i", type) }, result))
+        }
 
-        symbols.declare(
-            FunctionSymbol(
-                name = "sqrt",
-                parameters = listOf(
-                    FunctionParameter("value", RealType)
-                ),
-                returnType = RealType
-            )
-        )
-
-        symbols.declare(
-            FunctionSymbol(
-                name = "sin",
-                parameters = listOf(
-                    FunctionParameter("value", RealType)
-                ),
-                returnType = RealType
-            )
-        )
-
-        symbols.declare(
-            FunctionSymbol(
-                name = "cos",
-                parameters = listOf(
-                    FunctionParameter("value", RealType)
-                ),
-                returnType = RealType
-            )
-        )
-
-        symbols.declare(
-            FunctionSymbol(
-                name = "log",
-                parameters = listOf(
-                    FunctionParameter("message", StringType)
-                ),
-                returnType = VoidType
-            )
-        )
+        fixed("random_int", listOf(IntType, IntType), IntType)
+        fixed("random_real", listOf(RealType, RealType), RealType)
+        fixed("sqrt", listOf(RealType), RealType)
+        fixed("sin", listOf(RealType), RealType)
+        fixed("cos", listOf(RealType), RealType)
+        fixed("abs", listOf(RealType), RealType)
+        fixed("minimum", listOf(RealType, RealType), RealType)
+        fixed("maximum", listOf(RealType, RealType), RealType)
+        fixed("clamp", listOf(RealType, RealType, RealType), RealType)
+        fixed("log", listOf(StringType), VoidType)
+        fixed("metric", listOf(StringType, RealType), VoidType)
+        symbols.declare(IntrinsicSymbol("size"))
+        symbols.declare(IntrinsicSymbol("push"))
+        symbols.declare(IntrinsicSymbol("remove_at"))
     }
 }

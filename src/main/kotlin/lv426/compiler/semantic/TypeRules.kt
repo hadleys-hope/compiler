@@ -4,6 +4,7 @@ object TypeRules {
     fun isNumeric(type: HopeType): Boolean = type == IntType || type == RealType
 
     fun isAssignable(target: HopeType, source: HopeType): Boolean{
+        if (target == ErrorType || source == ErrorType) return true
         if (target == source){
             return true
         }
