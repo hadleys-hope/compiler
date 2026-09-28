@@ -1,0 +1,27 @@
+program smoke
+
+struct House
+    temperature of real = 20.0
+end
+
+var houses of House[2]
+var tick of int = 0
+
+event Alarm(id of int)
+
+def add(a of int, b of int) of int
+    return a + b
+end
+
+on Alarm(id)
+    houses[id].temperature += 1.0
+end
+
+on start
+    tick = add(1, 2)
+    emit Alarm(0)
+end
+
+every 1 sec
+    tick += 1
+end
