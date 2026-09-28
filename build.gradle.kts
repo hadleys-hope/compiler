@@ -18,17 +18,23 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
+val generatedAntlr = layout.buildDirectory.dir("generated/sources/antlr/main")
+
 tasks.generateGrammarSource {
     arguments = arguments + listOf("-visitor", "-no-listener")
-    outputDirectory = file("build/generated-src/antlr/main/lv426/compiler/parser")
+    outputDirectory = generatedAntlr.get().asFile
 }
 
 sourceSets {
     main {
         java {
-            srcDir("build/generated-src/antlr/main")
+            srcDir(generatedAntlr)
         }
     }
+}
+
+tasks.compileTestKotlin {
+    dependsOn(tasks.generateTestGrammarSource)
 }
 
 tasks.compileKotlin {

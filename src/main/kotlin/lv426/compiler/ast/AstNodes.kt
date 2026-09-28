@@ -1,144 +1,282 @@
 package lv426.compiler.ast
 
-/**
- * Базовый интерфейс для всех узлов абстрактного синтаксического дерева.
- */
-sealed interface AstNode
-
-// --- Программа ---
-
-data class ProgramNode(
-    val declarations: List<DeclarationNode>,
-    val handlers: List<HandlerNode>
-) : AstNode
-
-// --- Типы данных ---
-
-enum class DataType {
-    INT, FLOAT, BOOL, STRING;
+// Координаты узла в исходном коде (для вывода красивых ошибок компиляции).
+data class SourceLocation(
+    val line: Int,
+    val column: Int
+) {
+    override fun toString(): String = "$line:$column"
 
     companion object {
-        fun fromString(value: String): DataType = when (value) {
-            "int" -> INT
-            "float" -> FLOAT
-            "bool" -> BOOL
-            "string" -> STRING
-            else -> throw IllegalArgumentException("Unknown type: $value")
-        }
+        val NONE = SourceLocation(0, 0)
     }
 }
 
-data class TypeNode(val type: DataType) : AstNode
-
-// --- Объявления (Declarations) ---
-
-sealed interface DeclarationNode : AstNode {
-    val name: String
-    val type: TypeNode
+sealed interface AstNode {
+    val location: SourceLocation
 }
 
-data class SensorDeclNode(
-    override val name: String,
-    override val type: TypeNode
-) : DeclarationNode
+// Корень программы
+data class SourceNode(
+    val programName: String?,
+    val declarations: List<TopLevelDeclNode>,
+    override val location: SourceLocation = SourceLocation.NONE
+) : AstNode
 
-data class ActuatorDeclNode(
-    override val name: String,
-    override val type: TypeNode
-) : DeclarationNode
-
-data class VarDeclNode(
-    override val name: String,
-    override val type: TypeNode,
-    val initialValue: ExprNode
-) : DeclarationNode
+// Декларации верхнего уровня
+sealed interface TopLevelDeclNode : AstNode
 
 data class ConstDeclNode(
-    override val name: String,
-    override val type: TypeNode,
-    val initialValue: ExprNode
-) : DeclarationNode
+    val name: String,
+    val type: TypeRefNode,
+    val value: ExprNode,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TopLevelDeclNode
 
-// --- Обработчики событий (Handlers) ---
+data class GlobalVarDeclNode(
+    val name: String,
+    val type: TypeRefNode,
+    val initialValue: ExprNode?,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TopLevelDeclNode
 
-sealed interface HandlerNode : AstNode {
-    val body: BlockNode
-}
+data class StructDeclNode(
+    val name: String,
+    val fields: List<FieldDeclNode>,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TopLevelDeclNode
 
-data class OnInitHandlerNode(override val body: BlockNode) : HandlerNode
+data class FieldDeclNode(
+    val name: String,
+    val type: TypeRefNode,
+    val initialValue: ExprNode?,
+    override val location: SourceLocation = SourceLocation.NONE
+) : AstNode
 
-data class OnTickHandlerNode(override val body: BlockNode) : HandlerNode
+data class EnumDeclNode(
+    val name: String,
+    val members: List<String>,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TopLevelDeclNode
 
-data class OnChangeHandlerNode(
-    val sensorName: String,
-    override val body: BlockNode
-) : HandlerNode
+data class EventDeclNode(
+    val name: String,
+    val parameters: List<ParamNode>,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TopLevelDeclNode
 
-data class OnTimeHandlerNode(
-    val time: String,
-    override val body: BlockNode
-) : HandlerNode
+data class FunctionDeclNode(
+    val name: String,
+    val parameters: List<ParamNode>,
+    val returnType: TypeRefNode,
+    val body: List<StmtNode>,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TopLevelDeclNode
 
-// --- Блоки и Инструкции (Statements) ---
+data class ParamNode(
+    val name: String,
+    val type: TypeRefNode,
+    override val location: SourceLocation = SourceLocation.NONE
+) : AstNode
 
-data class BlockNode(val statements: List<StmtNode>) : AstNode
+// Обработчики событий
+data class StartHandlerNode(
+    val body: List<StmtNode>,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TopLevelDeclNode
 
+data class EventHandlerNode(
+    val eventName: String,
+    val parameters: List<String>,
+    val body: List<StmtNode>,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TopLevelDeclNode
+
+data class EveryHandlerNode(
+    val duration: DurationLiteralNode,
+    val body: List<StmtNode>,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TopLevelDeclNode
+
+data class AtHandlerNode(
+    val duration: DurationLiteralNode,
+    val body: List<StmtNode>,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TopLevelDeclNode
+
+// Типы данных
+sealed interface TypeRefNode : AstNode
+
+enum class PrimitiveType { INT, REAL, BOOL, STRING, TIME, VOID }
+
+data class PrimitiveTypeNode(
+    val type: PrimitiveType,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TypeRefNode
+
+data class CustomTypeNode(
+    val name: String,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TypeRefNode
+
+data class ListTypeNode(
+    val elementType: TypeRefNode,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TypeRefNode
+
+// Структурированный размер массив
+sealed interface ArraySizeNode : AstNode
+
+data class IntArraySizeNode(
+    val value: Long,
+    override val location: SourceLocation = SourceLocation.NONE
+) : ArraySizeNode
+
+data class IdentArraySizeNode(
+    val name: String,
+    override val location: SourceLocation = SourceLocation.NONE
+) : ArraySizeNode
+
+data class ArrayTypeNode(
+    val elementType: TypeRefNode,
+    val size: ArraySizeNode,
+    override val location: SourceLocation = SourceLocation.NONE
+) : TypeRefNode
+
+// Инструкции
 sealed interface StmtNode : AstNode
 
-data class AssignStmtNode(
-    val target: String,
-    val value: ExprNode
+data class LocalVarDeclNode(
+    val name: String,
+    val type: TypeRefNode,
+    val initialValue: ExprNode?,
+    override val location: SourceLocation = SourceLocation.NONE
 ) : StmtNode
 
-data class IfStmtNode(
+enum class AssignOp { ASSIGN, PLUS_ASSIGN, MINUS_ASSIGN, MUL_ASSIGN, DIV_ASSIGN, MOD_ASSIGN }
+
+data class AssignmentStmtNode(
+    val target: ExprNode,
+    val op: AssignOp,
+    val value: ExprNode,
+    override val location: SourceLocation = SourceLocation.NONE
+) : StmtNode
+
+data class IfBranchNode(
     val condition: ExprNode,
-    val thenBlock: BlockNode,
-    val elseBlock: BlockNode?
+    val body: List<StmtNode>,
+    override val location: SourceLocation = SourceLocation.NONE
+) : AstNode
+
+data class IfStmtNode(
+    val branches: List<IfBranchNode>,
+    val elseBody: List<StmtNode>?,
+    override val location: SourceLocation = SourceLocation.NONE
 ) : StmtNode
 
 data class WhileStmtNode(
     val condition: ExprNode,
-    val body: BlockNode
+    val body: List<StmtNode>,
+    override val location: SourceLocation = SourceLocation.NONE
 ) : StmtNode
 
-data class CallStmtNode(val call: CallExprNode) : StmtNode
+data class ForStmtNode(
+    val variable: String,
+    val from: ExprNode,
+    val to: ExprNode,
+    val step: ExprNode?,
+    val body: List<StmtNode>,
+    override val location: SourceLocation = SourceLocation.NONE
+) : StmtNode
 
-// --- Выражения (Expressions) ---
+data class BreakStmtNode(override val location: SourceLocation = SourceLocation.NONE) : StmtNode
+data class ContinueStmtNode(override val location: SourceLocation = SourceLocation.NONE) : StmtNode
 
+data class ReturnStmtNode(
+    val value: ExprNode?,
+    override val location: SourceLocation = SourceLocation.NONE
+) : StmtNode
+
+data class EmitStmtNode(
+    val eventName: String,
+    val arguments: List<ExprNode>,
+    override val location: SourceLocation = SourceLocation.NONE
+) : StmtNode
+
+data class ExprStmtNode(
+    val expr: ExprNode,
+    override val location: SourceLocation = SourceLocation.NONE
+) : StmtNode
+
+//  Выражения
 sealed interface ExprNode : AstNode
 
 enum class BinaryOp {
-    ADD, SUB, MUL, DIV, MOD,
-    EQ, NEQ, LT, LE, GT, GE,
-    AND, OR
-}
-
-enum class UnaryOp {
-    NEG, NOT
+    OR, AND, EQ, NEQ, LT, LTE, GT, GTE, PLUS, MINUS, MUL, DIV, MOD
 }
 
 data class BinaryExprNode(
     val left: ExprNode,
     val op: BinaryOp,
-    val right: ExprNode
+    val right: ExprNode,
+    override val location: SourceLocation = SourceLocation.NONE
 ) : ExprNode
+
+enum class UnaryOp { NOT, MINUS, PLUS }
 
 data class UnaryExprNode(
     val op: UnaryOp,
-    val operand: ExprNode
+    val operand: ExprNode,
+    override val location: SourceLocation = SourceLocation.NONE
+) : ExprNode
+
+data class FieldAccessExprNode(
+    val target: ExprNode,
+    val fieldName: String,
+    override val location: SourceLocation = SourceLocation.NONE
+) : ExprNode
+
+data class IndexAccessExprNode(
+    val target: ExprNode,
+    val index: ExprNode,
+    override val location: SourceLocation = SourceLocation.NONE
 ) : ExprNode
 
 data class CallExprNode(
-    val functionName: String,
-    val arguments: List<ExprNode>
+    val function: ExprNode,
+    val arguments: List<ExprNode>,
+    override val location: SourceLocation = SourceLocation.NONE
 ) : ExprNode
 
-data class VarExprNode(val name: String) : ExprNode
+data class VarExprNode(
+    val name: String,
+    override val location: SourceLocation = SourceLocation.NONE
+) : ExprNode
 
-data class IntLiteralNode(val value: Long) : ExprNode
+data class IntLiteralNode(
+    val value: Long,
+    override val location: SourceLocation = SourceLocation.NONE
+) : ExprNode
 
-data class FloatLiteralNode(val value: Double) : ExprNode
+data class RealLiteralNode(
+    val value: Double,
+    override val location: SourceLocation = SourceLocation.NONE
+) : ExprNode
 
-data class BoolLiteralNode(val value: Boolean) : ExprNode
+data class StringLiteralNode(
+    val value: String,
+    override val location: SourceLocation = SourceLocation.NONE
+) : ExprNode
 
-data class StringLiteralNode(val value: String) : ExprNode
+data class BoolLiteralNode(
+    val value: Boolean,
+    override val location: SourceLocation = SourceLocation.NONE
+) : ExprNode
+
+enum class TimeUnit { MS, SEC, MIN, HOUR, DAY }
+
+data class DurationLiteralNode(
+    val value: Double,
+    val unit: TimeUnit,
+    override val location: SourceLocation = SourceLocation.NONE
+) : ExprNode
