@@ -25,6 +25,8 @@ object FrontendPipeline {
         val tokenStream = CommonTokenStream(lexer)
         val parser = HopeLangParser(tokenStream)
 
+        parser.interpreter.predictionMode = org.antlr.v4.runtime.atn.PredictionMode.SLL
+
         parser.removeErrorListeners()
         parser.addErrorListener(object : BaseErrorListener() {
             override fun syntaxError(
