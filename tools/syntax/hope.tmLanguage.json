@@ -1,0 +1,95 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "HopeLang",
+  "scopeName": "source.hope",
+  "fileTypes": ["hope"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#timeUnits" },
+    { "include": "#numbers" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.hope", "match": "//.*$" },
+        { "name": "comment.block.hope", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.hope",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        { "name": "constant.character.escape.hope", "match": "\\\\." }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.hope",
+          "match": "\\b(if|elif|else|while|for|from|to|step|break|continue|return|end|on|start|every|at|emit)\\b"
+        },
+        {
+          "name": "keyword.declaration.hope",
+          "match": "\\b(program|const|var|struct|enum|event|def|of|list)\\b"
+        },
+        {
+          "name": "keyword.operator.logical.hope",
+          "match": "\\b(and|or|not)\\b"
+        },
+        {
+          "name": "constant.language.boolean.hope",
+          "match": "\\b(true|false)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.primitive.hope",
+          "match": "\\b(int|real|bool|string|time|void)\\b"
+        }
+      ]
+    },
+    "timeUnits": {
+      "patterns": [
+        {
+          "name": "keyword.other.unit.hope",
+          "match": "\\b(ms|sec|min|hour|day)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.hope",
+          "match": "\\b\\d+\\.\\d+([eE][+-]?\\d+)?\\b"
+        },
+        {
+          "name": "constant.numeric.integer.hope",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.hope",
+          "match": "(\\+=|-=|\\*=|/=|%=|=)"
+        },
+        {
+          "name": "keyword.operator.comparison.hope",
+          "match": "(==|!=|<=|>=|<|>)"
+        },
+        {
+          "name": "keyword.operator.arithmetic.hope",
+          "match": "(\\+|-|\\*|/|%)"
+        }
+      ]
+    }
+  }
+}

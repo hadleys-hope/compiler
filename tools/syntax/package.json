@@ -1,0 +1,24 @@
+{
+  "name": "hopelang",
+  "displayName": "HopeLang",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.0.0"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "hope",
+        "aliases": ["Hope", "hope"],
+        "extensions": [".hope"]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "hope",
+        "scopeName": "source.hope",
+        "path": "./hope.tmLanguage.json"
+      }
+    ]
+  }
+}
