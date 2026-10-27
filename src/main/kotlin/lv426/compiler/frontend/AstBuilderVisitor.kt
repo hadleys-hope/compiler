@@ -1,7 +1,8 @@
 package lv426.compiler.frontend
 
 import HopeLangBaseVisitor
-import lv426.compiler.ast.*;
+import HopeLangParser
+import lv426.compiler.ast.*
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.tree.TerminalNode
 
@@ -19,13 +20,13 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
         return SourceNode(programName, decls, ctx.loc())
     }
 
-    // Top-level Declarations
+    // --- Top-level Declarations ---
 
     override fun visitConstDecl(ctx: HopeLangParser.ConstDeclContext): ConstDeclNode {
         return ConstDeclNode(
             name = ctx.ID().text,
             type = visitTypeRef(ctx.typeRef()),
-            value = visit(ctx.expression()) as ExprNode,
+            value = visitExpression(ctx.expression()),
             location = ctx.loc()
         )
     }
@@ -34,7 +35,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
         return GlobalVarDeclNode(
             name = ctx.ID().text,
             type = visitTypeRef(ctx.typeRef()),
-            initialValue = ctx.expression()?.let { visit(it) as ExprNode },
+            initialValue = ctx.expression()?.let { visitExpression(it) },
             location = ctx.loc()
         )
     }
@@ -44,7 +45,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
             FieldDeclNode(
                 name = fieldCtx.ID().text,
                 type = visitTypeRef(fieldCtx.typeRef()),
-                initialValue = fieldCtx.expression()?.let { visit(it) as ExprNode },
+                initialValue = fieldCtx.expression()?.let { visitExpression(it) },
                 location = fieldCtx.loc()
             )
         }
@@ -63,7 +64,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
 
     override fun visitFunctionDecl(ctx: HopeLangParser.FunctionDeclContext): FunctionDeclNode {
         val params = ctx.parameterList()?.parameter()?.map { visitParameter(it) } ?: emptyList()
-        val body = ctx.statement().map { visit(it) as StmtNode }
+        val body = ctx.statement().map { visitStatement(it) }
         return FunctionDeclNode(
             name = ctx.ID().text,
             parameters = params,
@@ -76,23 +77,23 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
     override fun visitParameter(ctx: HopeLangParser.ParameterContext): ParamNode =
         ParamNode(ctx.ID().text, visitTypeRef(ctx.typeRef()), ctx.loc())
 
-    // Handlers
+    // --- Handlers ---
 
     override fun visitStartHandler(ctx: HopeLangParser.StartHandlerContext): StartHandlerNode =
-        StartHandlerNode(ctx.statement().map { visit(it) as StmtNode }, ctx.loc())
+        StartHandlerNode(ctx.statement().map { visitStatement(it) }, ctx.loc())
 
     override fun visitEventHandler(ctx: HopeLangParser.EventHandlerContext): EventHandlerNode {
         val params = ctx.identifierList()?.ID()?.map { it.text } ?: emptyList()
-        return EventHandlerNode(ctx.ID().text, params, ctx.statement().map { visit(it) as StmtNode }, ctx.loc())
+        return EventHandlerNode(ctx.ID().text, params, ctx.statement().map { visitStatement(it) }, ctx.loc())
     }
 
     override fun visitEveryHandler(ctx: HopeLangParser.EveryHandlerContext): EveryHandlerNode =
-        EveryHandlerNode(visitDurationLiteral(ctx.durationLiteral()), ctx.statement().map { visit(it) as StmtNode }, ctx.loc())
+        EveryHandlerNode(visitDurationLiteral(ctx.durationLiteral()), ctx.statement().map { visitStatement(it) }, ctx.loc())
 
     override fun visitAtHandler(ctx: HopeLangParser.AtHandlerContext): AtHandlerNode =
-        AtHandlerNode(visitDurationLiteral(ctx.durationLiteral()), ctx.statement().map { visit(it) as StmtNode }, ctx.loc())
+        AtHandlerNode(visitDurationLiteral(ctx.durationLiteral()), ctx.statement().map { visitStatement(it) }, ctx.loc())
 
-    // Types
+    // --- Types ---
 
     override fun visitTypeRef(ctx: HopeLangParser.TypeRefContext): TypeRefNode {
         val atom = ctx.typeAtom()
@@ -117,10 +118,11 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
 
         return if (ctx.LBRACK() != null) {
             val sizeCtx = ctx.arraySize()
+            val loc = sizeCtx.loc()
             val sizeNode: ArraySizeNode = if (sizeCtx.INT_LITERAL() != null) {
-                IntArraySizeNode(parseInt(sizeCtx.INT_LITERAL().text, sizeCtx.loc()), sizeCtx.loc())
+                IntArraySizeNode(parseInt(sizeCtx.INT_LITERAL().text, loc), loc)
             } else {
-                IdentArraySizeNode(sizeCtx.ID().text, sizeCtx.loc())
+                IdentArraySizeNode(sizeCtx.ID().text, loc)
             }
             ArrayTypeNode(baseType, sizeNode, ctx.loc())
         } else {
@@ -128,7 +130,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
         }
     }
 
-    // Statements
+    // --- Statements ---
 
     override fun visitStatement(ctx: HopeLangParser.StatementContext): StmtNode =
         visit(ctx.getChild(0)) as StmtNode
@@ -137,7 +139,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
         LocalVarDeclNode(
             name = ctx.ID().text,
             type = visitTypeRef(ctx.typeRef()),
-            initialValue = ctx.expression()?.let { visit(it) as ExprNode },
+            initialValue = ctx.expression()?.let { visitExpression(it) },
             location = ctx.loc()
         )
 
@@ -152,7 +154,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
             "%=" -> AssignOp.MOD_ASSIGN
             else -> error("Unknown assign operator")
         }
-        val value = visit(ctx.expression()) as ExprNode
+        val value = visitExpression(ctx.expression())
         return AssignmentStmtNode(target, op, value, ctx.loc())
     }
 
@@ -162,7 +164,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
             current = if (suffix.DOT() != null) {
                 FieldAccessExprNode(current, suffix.ID().text, suffix.loc())
             } else {
-                IndexAccessExprNode(current, visit(suffix.expression()) as ExprNode, suffix.loc())
+                IndexAccessExprNode(current, visitExpression(suffix.expression()), suffix.loc())
             }
         }
         return current
@@ -199,9 +201,9 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
                     }
                 }
             } else if (child is HopeLangParser.ExpressionContext) {
-                currentCond = visit(child) as ExprNode
+                currentCond = visitExpression(child)
             } else if (child is HopeLangParser.StatementContext) {
-                val stmt = visit(child) as StmtNode
+                val stmt = visitStatement(child)
                 if (inElse) elseStmts!!.add(stmt) else currentStmts.add(stmt)
             }
         }
@@ -209,63 +211,78 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
     }
 
     override fun visitWhileStatement(ctx: HopeLangParser.WhileStatementContext): WhileStmtNode =
-        WhileStmtNode(visit(ctx.expression()) as ExprNode, ctx.statement().map { visit(it) as StmtNode }, ctx.loc())
+        WhileStmtNode(visitExpression(ctx.expression()), ctx.statement().map { visitStatement(it) }, ctx.loc())
 
     override fun visitForStatement(ctx: HopeLangParser.ForStatementContext): ForStmtNode {
         val exprs = ctx.expression()
-        val from = visit(exprs[0]) as ExprNode
-        val to = visit(exprs[1]) as ExprNode
-        val step = if (ctx.STEP() != null) visit(exprs[2]) as ExprNode else null
-        return ForStmtNode(ctx.ID().text, from, to, step, ctx.statement().map { visit(it) as StmtNode }, ctx.loc())
+        val from = visitExpression(exprs[0])
+        val to = visitExpression(exprs[1])
+        val step = if (ctx.STEP() != null) visitExpression(exprs[2]) else null
+        return ForStmtNode(ctx.ID().text, from, to, step, ctx.statement().map { visitStatement(it) }, ctx.loc())
     }
 
     override fun visitBreakStatement(ctx: HopeLangParser.BreakStatementContext): StmtNode = BreakStmtNode(ctx.loc())
     override fun visitContinueStatement(ctx: HopeLangParser.ContinueStatementContext): StmtNode = ContinueStmtNode(ctx.loc())
     override fun visitReturnStatement(ctx: HopeLangParser.ReturnStatementContext): StmtNode =
-        ReturnStmtNode(ctx.expression()?.let { visit(it) as ExprNode }, ctx.loc())
+        ReturnStmtNode(ctx.expression()?.let { visitExpression(it) }, ctx.loc())
 
     override fun visitEmitStatement(ctx: HopeLangParser.EmitStatementContext): StmtNode {
-        val args = ctx.argumentList()?.expression()?.map { visit(it) as ExprNode } ?: emptyList()
+        val args = ctx.argumentList()?.expression()?.map { visitExpression(it) } ?: emptyList()
         return EmitStmtNode(ctx.ID().text, args, ctx.loc())
     }
 
     override fun visitExpressionStatement(ctx: HopeLangParser.ExpressionStatementContext): StmtNode =
-        ExprStmtNode(visit(ctx.expression()) as ExprNode, ctx.loc())
+        ExprStmtNode(visitExpression(ctx.expression()), ctx.loc())
 
-    // Expressions
+    // --- Expressions (Прямой спуск без виртуальных накладных расходов) ---
+
+    override fun visitExpression(ctx: HopeLangParser.ExpressionContext): ExprNode =
+        visitLogicalOr(ctx.logicalOr())
 
     override fun visitLogicalOr(ctx: HopeLangParser.LogicalOrContext): ExprNode {
-        var node = visit(ctx.logicalAnd(0)) as ExprNode
-        for (i in 1 until ctx.logicalAnd().size) {
-            val right = visit(ctx.logicalAnd(i)) as ExprNode
+        val ands = ctx.logicalAnd()
+        if (ands.size == 1) return visitLogicalAnd(ands[0])
+
+        var node = visitLogicalAnd(ands[0])
+        for (i in 1 until ands.size) {
+            val right = visitLogicalAnd(ands[i])
             node = BinaryExprNode(node, BinaryOp.OR, right, node.location)
         }
         return node
     }
 
     override fun visitLogicalAnd(ctx: HopeLangParser.LogicalAndContext): ExprNode {
-        var node = visit(ctx.equality(0)) as ExprNode
-        for (i in 1 until ctx.equality().size) {
-            val right = visit(ctx.equality(i)) as ExprNode
+        val eqs = ctx.equality()
+        if (eqs.size == 1) return visitEquality(eqs[0])
+
+        var node = visitEquality(eqs[0])
+        for (i in 1 until eqs.size) {
+            val right = visitEquality(eqs[i])
             node = BinaryExprNode(node, BinaryOp.AND, right, node.location)
         }
         return node
     }
 
     override fun visitEquality(ctx: HopeLangParser.EqualityContext): ExprNode {
-        var node = visit(ctx.comparison(0)) as ExprNode
-        for (i in 1 until ctx.comparison().size) {
+        val comps = ctx.comparison()
+        if (comps.size == 1) return visitComparison(comps[0])
+
+        var node = visitComparison(comps[0])
+        for (i in 1 until comps.size) {
             val opToken = ctx.getChild(2 * i - 1) as TerminalNode
             val op = if (opToken.symbol.type == HopeLangParser.EQ) BinaryOp.EQ else BinaryOp.NEQ
-            val right = visit(ctx.comparison(i)) as ExprNode
+            val right = visitComparison(comps[i])
             node = BinaryExprNode(node, op, right, opToken.loc())
         }
         return node
     }
 
     override fun visitComparison(ctx: HopeLangParser.ComparisonContext): ExprNode {
-        var node = visit(ctx.additive(0)) as ExprNode
-        for (i in 1 until ctx.additive().size) {
+        val adds = ctx.additive()
+        if (adds.size == 1) return visitAdditive(adds[0])
+
+        var node = visitAdditive(adds[0])
+        for (i in 1 until adds.size) {
             val opToken = ctx.getChild(2 * i - 1) as TerminalNode
             val op = when (opToken.symbol.type) {
                 HopeLangParser.LT -> BinaryOp.LT
@@ -274,26 +291,32 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
                 HopeLangParser.GTE -> BinaryOp.GTE
                 else -> error("Unknown comparison op")
             }
-            val right = visit(ctx.additive(i)) as ExprNode
+            val right = visitAdditive(adds[i])
             node = BinaryExprNode(node, op, right, opToken.loc())
         }
         return node
     }
 
     override fun visitAdditive(ctx: HopeLangParser.AdditiveContext): ExprNode {
-        var node = visit(ctx.multiplicative(0)) as ExprNode
-        for (i in 1 until ctx.multiplicative().size) {
+        val muls = ctx.multiplicative()
+        if (muls.size == 1) return visitMultiplicative(muls[0])
+
+        var node = visitMultiplicative(muls[0])
+        for (i in 1 until muls.size) {
             val opToken = ctx.getChild(2 * i - 1) as TerminalNode
             val op = if (opToken.symbol.type == HopeLangParser.PLUS) BinaryOp.PLUS else BinaryOp.MINUS
-            val right = visit(ctx.multiplicative(i)) as ExprNode
+            val right = visitMultiplicative(muls[i])
             node = BinaryExprNode(node, op, right, opToken.loc())
         }
         return node
     }
 
     override fun visitMultiplicative(ctx: HopeLangParser.MultiplicativeContext): ExprNode {
-        var node = visit(ctx.unary(0)) as ExprNode
-        for (i in 1 until ctx.unary().size) {
+        val unaries = ctx.unary()
+        if (unaries.size == 1) return visitUnary(unaries[0])
+
+        var node = visitUnary(unaries[0])
+        for (i in 1 until unaries.size) {
             val opToken = ctx.getChild(2 * i - 1) as TerminalNode
             val op = when (opToken.symbol.type) {
                 HopeLangParser.MUL -> BinaryOp.MUL
@@ -301,7 +324,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
                 HopeLangParser.MOD -> BinaryOp.MOD
                 else -> error("Unknown multiplicative op")
             }
-            val right = visit(ctx.unary(i)) as ExprNode
+            val right = visitUnary(unaries[i])
             node = BinaryExprNode(node, op, right, opToken.loc())
         }
         return node
@@ -309,7 +332,7 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
 
     override fun visitUnary(ctx: HopeLangParser.UnaryContext): ExprNode {
         if (ctx.postfix() != null) return visitPostfix(ctx.postfix())
-        val operand = visit(ctx.unary()) as ExprNode
+        val operand = visitUnary(ctx.unary())
         val op = when {
             ctx.NOT() != null -> UnaryOp.NOT
             ctx.MINUS() != null -> UnaryOp.MINUS
@@ -320,13 +343,13 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
     }
 
     override fun visitPostfix(ctx: HopeLangParser.PostfixContext): ExprNode {
-        var current = visit(ctx.primary()) as ExprNode
+        var current = visitPrimary(ctx.primary())
         for (suffix in ctx.postfixSuffix()) {
             current = when {
                 suffix.DOT() != null -> FieldAccessExprNode(current, suffix.ID().text, suffix.loc())
-                suffix.LBRACK() != null -> IndexAccessExprNode(current, visit(suffix.expression()) as ExprNode, suffix.loc())
+                suffix.LBRACK() != null -> IndexAccessExprNode(current, visitExpression(suffix.expression()), suffix.loc())
                 suffix.LPAREN() != null -> {
-                    val args = suffix.argumentList()?.expression()?.map { visit(it) as ExprNode } ?: emptyList()
+                    val args = suffix.argumentList()?.expression()?.map { visitExpression(it) } ?: emptyList()
                     CallExprNode(current, args, suffix.loc())
                 }
                 else -> error("Unknown postfix suffix")
@@ -336,26 +359,25 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
     }
 
     override fun visitPrimary(ctx: HopeLangParser.PrimaryContext): ExprNode {
-        return when {
-            ctx.durationLiteral() != null -> visitDurationLiteral(ctx.durationLiteral())
-            ctx.literal() != null -> visitLiteral(ctx.literal())
-            ctx.ID() != null -> VarExprNode(ctx.ID().text, ctx.loc())
-            ctx.LPAREN() != null -> visit(ctx.expression()) as ExprNode
-            else -> error("Unknown primary")
-        }
+        ctx.ID()?.let { return VarExprNode(it.text, it.loc()) }
+        ctx.literal()?.let { return visitLiteral(it) }
+        ctx.durationLiteral()?.let { return visitDurationLiteral(it) }
+        ctx.expression()?.let { return visitExpression(it) }
+        error("Unknown primary at ${ctx.loc()}")
     }
 
     override fun visitLiteral(ctx: HopeLangParser.LiteralContext): ExprNode {
+        val loc = ctx.loc()
         return when {
-            ctx.INT_LITERAL() != null -> IntLiteralNode(parseInt(ctx.INT_LITERAL().text, ctx.loc()), ctx.loc())
-            ctx.REAL_LITERAL() != null -> RealLiteralNode(ctx.REAL_LITERAL().text.toDouble(), ctx.loc())
+            ctx.INT_LITERAL() != null -> IntLiteralNode(parseInt(ctx.INT_LITERAL().text, loc), loc)
+            ctx.REAL_LITERAL() != null -> RealLiteralNode(ctx.REAL_LITERAL().text.toDouble(), loc)
             ctx.STRING_LITERAL() != null -> {
                 val txt = ctx.STRING_LITERAL().text
                 val unescaped = unescapeString(txt.substring(1, txt.length - 1))
-                StringLiteralNode(unescaped, ctx.loc())
+                StringLiteralNode(unescaped, loc)
             }
-            ctx.TRUE() != null -> BoolLiteralNode(true, ctx.loc())
-            ctx.FALSE() != null -> BoolLiteralNode(false, ctx.loc())
+            ctx.TRUE() != null -> BoolLiteralNode(true, loc)
+            ctx.FALSE() != null -> BoolLiteralNode(false, loc)
             else -> error("Unknown literal")
         }
     }
@@ -379,7 +401,6 @@ class AstBuilderVisitor : HopeLangBaseVisitor<AstNode>() {
             "Integer literal out of range at ${location.line}:${location.column}: $text"
         )
 
-    // escape-sequences (\n, \t, \uXXXX)
     private fun unescapeString(s: String): String {
         val sb = StringBuilder()
         var i = 0
